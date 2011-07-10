@@ -6,6 +6,7 @@ import math
 import os
 
 
+
 class InCaptcha():
     """ Clase para tratar captchas. """
 
@@ -186,15 +187,19 @@ def inicializar_pesos2():
     return w2
 
 
-def output_correcto():
-    char = raw_input('Ingresa el output: ')
-    out = ord(char)
-    if (48 <= out <= 57):
-        pos = out - 48
-    elif (65 <= out <= 90):
-        pos = out - 55
-    z = [0 for x in range(outputs)]
-    z[pos] = 1
+def output_correcto(im):
+    hash = open("hash.txt", "r")
+    dic = dict(map(lambda l: l.split('\t'), hash.readlines()))
+    hash.close()
+    for letra in dic.get(im).strip():
+        out = ord(letra)
+        if (48 <= out <= 57):
+            pos = out - 48
+        elif (65 <= out <= 90):
+            pos = out - 55
+            letra = [0 for x in range(outputs)]
+            letra[pos] = 1
+        z.append(letra)
     return z
 
 
@@ -274,9 +279,9 @@ def main():
     for im in files:
         print im
         xi = inicializar_inputs("./images/simples/pocas/menos/" + im)
+        z = output_correcto(im)
         for i in range(5):
             print im, i
-            z = output_correcto()
 #            h1 = calcular_h1(w, xi, i)
 #            h2 = calcular_h2(h1, w2)
 #            while error_ok(h2, z):
