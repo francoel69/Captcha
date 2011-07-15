@@ -16,7 +16,6 @@ class InCaptcha():
         self.letras = []
 
     def quitarRuido(self):
-        incapold = self.incap.copy()
         self.incap = self.incap.filter(ImageFilter.ModeFilter())
         colors = self.incap.getcolors()
         colors.sort(reverse=True)
@@ -27,25 +26,6 @@ class InCaptcha():
                 if not t in colors:
                     self.incap.putpixel((x, y), (255, 255, 255))
         self.dividir()
-        for i in range(5):
-            box = self.limites[i]
-            region = self.incap.crop(box)
-            colors = region.getcolors()
-            colors.sort(reverse=True)
-            color = colors[0][1]
-            if color == (255, 255, 255):
-                color = colors[1][1]
-            for x in range(box[0], box[2] + 1):
-                for y in range(box[1], box[3] + 1):
-                    r, g, b = incapold.getpixel((x, y))
-                    r2, g2, b2 = self.incap.getpixel((x, y))
-                    if((r, g, b) != (r2, g2, b2)):
-                        if(r + g + b == 255 * 3):
-                            self.incap.putpixel((x, y), (r, g, b))
-                        elif((r, g, b) == color):
-                            self.incap.putpixel((x, y), color)
-                    if((r2, g2, b2) != color and r2 + g2 + b2 != 255 * 3):
-                            self.incap.putpixel((x, y), color)
 
     def __proxcolumnacolor(self, desde):
         x, cond = desde, True
@@ -57,6 +37,8 @@ class InCaptcha():
                     cond, ret = False, x
                 y += 1
             x += 1
+        if x == self.nx and cond:
+            raise Warning("Imagen complicada.")
         return ret
 
     def __ultimacolumnacolor(self, desde):
@@ -150,8 +132,8 @@ inputs = 256
 c_ocultas = 1
 n_ocultas = 24
 outputs = 36
-eta = 0.01
-error_t = 0.01
+eta = 0.2
+error_t = 0.1
 
 
 def inicializar_inputs(im):
@@ -166,35 +148,42 @@ def inicializar_inputs(im):
     return xi
 
 
-def inicializar_pesos():
+def inicializar_pesos(filas, columnas, file):
     w = []
-    for i in range(n_ocultas):
-        fila = []
-        for j in range(inputs):
-            fila.append(random.uniform(-0.05, 0.05))
-        w.append(fila)
+    try:
+        f = open(file, "r")
+    except IOError:
+        for i in range(filas):
+            fila = []
+            for j in range(columnas):
+                fila.append(random.uniform(-0.05, 0.05))
+            w.append(fila)
+    else:
+        l = f.readlines()
+        f.close()
+        for i in range(filas):
+            w.append(map(lambda x: float(x), l[i].split()))
     return w
 
 
-def inicializar_pesos2():
-    w2 = []
-    for i in range(outputs):
-        fila = []
-        for j in range(n_ocultas):
-            fila.append(random.uniform(-0.05, 0.05))
-        w2.append(fila)
-    return w2
-
-
-def output_correcto():
-    char = raw_input('Ingresa el output: ')
-    out = ord(char)
+def obtener_output(l):
+    out = ord(l)
     if (48 <= out <= 57):
         pos = out - 48
     elif (65 <= out <= 90):
         pos = out - 55
-    z = [0 for x in range(outputs)]
-    z[pos] = 1
+    letra = [0 for x in range(outputs)]
+    letra[pos] = 1
+    return letra
+
+
+def output_correcto(im):
+    hash = open("./samples/captcha_samples_lib_03/hash.txt", "r")
+    dic = dict(map(lambda l: l.split('\t'), hash.readlines()))
+    hash.close()
+    z = []
+    for l in dic.get(im).strip():
+        z.append(obtener_output(l))
     return z
 
 
@@ -247,6 +236,15 @@ def actualizar_w2(w2, d2, h1):
             w2[i][j] += eta * d2[i] * g(h1[j])
 
 
+def actualizar_archivo(w, file):
+    filas = len(w)
+    f = open(file, "w")
+    for i in range(filas):
+            f.writelines(map(lambda a: repr(a) + " ", w[i]))
+            f.write("\n")
+    f.close()
+
+
 def g(x):
     return (1.0 / (1.0 + math.exp(-x)))
 
@@ -262,37 +260,112 @@ def error_ok(h2, z):
     return any(map(lambda x: x>error_t, lista))
 
 
-def main():
-    out = open("out.txt", "w")
-    w = inicializar_pesos()
-    w2 = inicializar_pesos2()
+def representante(gh2):
+    pmax = gh2.index(max(gh2))
+    if 0<= pmax <= 9:
+        ret = repr(pmax)
+    else:
+        ret = chr(pmax + 55)
+    return ret
 
-    files = os.walk("./images/simples/pocas/menos").next()[2]
-    if '.directory' in files:
-        files.remove('.directory')
-        files.remove('conocido_28.bmp')
-    for im in files:
-        print im
-        xi = inicializar_inputs("./images/simples/pocas/menos/" + im)
-        for i in range(5):
-            print im, i
-            z = output_correcto()
-#            h1 = calcular_h1(w, xi, i)
-#            h2 = calcular_h2(h1, w2)
-#            while error_ok(h2, z):
-            for y in range(1000):
-                h1 = calcular_h1(w, xi, i)
-                h2 = calcular_h2(h1, w2)
-                d2 = computar_delta2(h2, z)
-                d1 = computar_delta1(h1, w2, d2)
-                actualizar_w1(w, d1, xi, i)
-                actualizar_w2(w2, d2, h1)
-            out.writelines([repr(g(x)) + "\n" for x in h2])
-        out.write("\n")
-    out.close()
-    xi = inicializar_inputs("./images/simples/pocas/menos/conocido_28.bmp")
+
+def process(im):
+    w = inicializar_pesos(n_ocultas, inputs, "../pesos.txt")
+    w2 = inicializar_pesos(outputs, n_ocultas, "../pesos2.txt")
+    ret = []
+    xi = inicializar_inputs(im)
     for i in range(5):
+        first = False
         h1 = calcular_h1(w, xi, i)
         h2 = calcular_h2(h1, w2)
-        print "conocido_28: ", i
-        print map(g, h2)
+        ret.append(representante(map(g, h2)))
+    return ret
+
+
+def modify(im, out):
+    w = inicializar_pesos(n_ocultas, inputs, "../pesos.txt")
+    w2 = inicializar_pesos(outputs, n_ocultas, "../pesos2.txt")
+    xi = inicializar_inputs(im)
+    for i in range(5):
+        zi = obtener_output(out[i])
+        h1 = calcular_h1(w, xi, i)
+        h2 = calcular_h2(h1, w2)
+        d2 = computar_delta2(h2, zi)
+        d1 = computar_delta1(h1, w2, d2)
+        actualizar_w1(w, d1, xi, i)
+        actualizar_w2(w2, d2, h1)
+    actualizar_archivo(w, "../pesos.txt")
+    actualizar_archivo(w2, "../pesos2.txt")
+    return process(im)
+
+
+def train(folder):
+    w = inicializar_pesos(n_ocultas, inputs, "./pesos.txt")
+    w2 = inicializar_pesos(outputs, n_ocultas, "./pesos2.txt")
+
+    files = os.walk(folder).next()[2]
+    if '.directory' in files:
+        files.remove('.directory')
+    if 'hash.txt' in files:
+        files.remove('hash.txt')
+    count = 0
+    for im in files:
+        count += 1
+        try:
+            xi = inicializar_inputs(folder + im)
+            z = output_correcto(im)
+        except (Warning, AttributeError) as detail:
+            print im, count, detail
+        else:
+            print im, count
+            for i in range(5):
+                first = True
+                while first or error_ok(h2, z[i]):
+                    first = False
+                    h1 = calcular_h1(w, xi, i)
+                    h2 = calcular_h2(h1, w2)
+                    d2 = computar_delta2(h2, z[i])
+                    d1 = computar_delta1(h1, w2, d2)
+                    actualizar_w1(w, d1, xi, i)
+                    actualizar_w2(w2, d2, h1)
+    actualizar_archivo(w, "./pesos.txt")
+    actualizar_archivo(w2, "./pesos2.txt")
+
+#def main():
+#    w = inicializar_pesos(n_ocultas, inputs, "./pesos.txt")
+#    w2 = inicializar_pesos(outputs, n_ocultas, "./pesos2.txt")
+#
+#    files = os.walk("./samples/captcha_samples_lib_03").next()[2]
+#    if '.directory' in files:
+#        files.remove('.directory')
+#    files.remove('hash.txt')
+#    count = 0
+#    for im in files:
+#        print im, count
+#        count += 1
+#        try:
+#            xi = inicializar_inputs("./samples/captcha_samples_lib_03/" + im)
+#            z = output_correcto(im)
+#        except (Warning, AttributeError) as detail:
+#            print "Imagen ", im, ": ", detail
+#        else:
+#            for i in range(5):
+#                print im, i
+#                first = True
+#                while first or error_ok(h2, z[i]):
+#                    first = False
+#                    h1 = calcular_h1(w, xi, i)
+#                    h2 = calcular_h2(h1, w2)
+#                    d2 = computar_delta2(h2, z[i])
+#                    d1 = computar_delta1(h1, w2, d2)
+#                    actualizar_w1(w, d1, xi, i)
+#                    actualizar_w2(w2, d2, h1)
+#                print representante(map(g, h2))
+#            actualizar_archivo(w, "./pesos.txt")
+#            actualizar_archivo(w2, "./pesos2.txt")
+#    xi = inicializar_inputs("./images/simples/pocas/conocido_01.bmp")
+#    for i in range(5):
+#        h1 = calcular_h1(w, xi, i)
+#        h2 = calcular_h2(h1, w2)
+#        print "conocido_01: ", i
+#        print representante(map(g, h2))
