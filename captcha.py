@@ -25,29 +25,30 @@ class InCaptcha():
                 t = self.incap.getpixel((x, y))
                 if not t in colors:
                     self.incap.putpixel((x, y), (255, 255, 255))
-        self.dividir()
+        colors.remove((255, 255, 255))
+        self.dividir(colors)
 
-    def __proxcolumnacolor(self, desde):
+    def __proxcolumnacolor(self, desde, colors):
         x, cond = desde, True
         while (x < self.nx) and cond:
             y = 0
             while (y < self.ny) and cond:
-                r, g, b = self.incap.getpixel((x, y))
-                if(r + g + b != (255 * 3)):
+                t = self.incap.getpixel((x, y))
+                if t in colors:
                     cond, ret = False, x
                 y += 1
             x += 1
-        if x == self.nx and cond:
-            raise Warning("Imagen complicada.")
-        return ret
+#        if x == self.nx and cond:
+#            raise Warning("Imagen complicada.")
+        return (ret, t)
 
-    def __ultimacolumnacolor(self, desde):
+    def __ultimacolumnacolor(self, desde, color):
         x, cond = desde, True
         while (x < self.nx) and cond:
             y, cond2 = 0, True
             while (y < self.ny) and cond2:
-                r, g, b = self.incap.getpixel((x, y))
-                if(r + g + b != (255 * 3)):
+                t = self.incap.getpixel((x, y))
+                if(t == color):
                     cond2 = False
                 y += 1
             if(y == self.ny):
@@ -57,25 +58,25 @@ class InCaptcha():
             ret = x - 1
         return ret
 
-    def __primerfilacolor(self, xdesde, xhasta):
+    def __primerfilacolor(self, xdesde, xhasta, color):
         y, cond = 0, True
         while (y < self.ny) and cond:
             x = xdesde
-            while (x < xhasta) and cond:
-                r, g, b = self.incap.getpixel((x, y))
-                if(r + g + b != (255 * 3)):
+            while (x <= xhasta) and cond:
+                t = self.incap.getpixel((x, y))
+                if(t == color):
                     cond, ret = False, y
                 x += 1
             y += 1
         return ret
 
-    def __ultimafilacolor(self, xdesde, xhasta, ydesde):
+    def __ultimafilacolor(self, xdesde, xhasta, ydesde, color):
         y, cond = ydesde, True
         while(y < self.ny) and cond:
             x, cond2 = xdesde, True
             while(x <= xhasta) and cond2:
-                r, g, b = self.incap.getpixel((x, y))
-                if(r + g + b != (255 * 3)):
+                t = self.incap.getpixel((x, y))
+                if(t == color):
                     cond2 = False
                 else:
                     x += 1
@@ -86,14 +87,15 @@ class InCaptcha():
             ret = y - 1
         return ret
 
-    def dividir(self, cant=5):
-        left, right = 0, -1
-        for i in range(cant):
-            left = self.__proxcolumnacolor(right + 1)
-            right = self.__ultimacolumnacolor(left)
-            upper = self.__primerfilacolor(left, right)
-            lower = self.__ultimafilacolor(left, right, upper)
-            self.limites.append((left, upper, right, lower))
+    def dividir(self, colors):
+        left = 0
+        for i in range(5):
+            left, color = self.__proxcolumnacolor(left, colors)
+            colors.remove(color)
+            right = self.__ultimacolumnacolor(left, color)
+            upper = self.__primerfilacolor(left, right, color)
+            lower = self.__ultimafilacolor(left, right, upper, color)
+            self.limites.append((left, upper, right + 1, lower + 1))
 
     def separar(self):
         for i in range(5):
@@ -113,6 +115,12 @@ class Letra():
 
     def __init__(self, im, box):
         self.region = im.crop(box)
+        colors = self.region.getcolors()
+        colors.sort(reverse=True)
+        color = colors[0][1]
+        if color == (255, 255, 255):
+            color = colors[1][1]
+        self.color = color
 
     def resize(self, (x, y)=(xmax, ymax)):
         self.region = self.region.resize((x, y))
@@ -121,8 +129,8 @@ class Letra():
         self.matriz = []
         for x in range(0, self.xmax):
             for y in range(0, self.ymax):
-                r, g, b = self.region.getpixel((x, y))
-                if(r + g + b != (255 * 3)):
+                t = self.region.getpixel((x, y))
+                if(t == self.color):
                     self.matriz.append(int(1))
                 else:
                     self.matriz.append(int(0))
@@ -177,14 +185,11 @@ def obtener_output(l):
     return letra
 
 
-def output_correcto(im):
-    hash = open("./samples/captcha_samples_lib_03/hash.txt", "r")
+def output_correcto(folder):
+    hash = open(folder + "/hash.txt", "r")
     dic = dict(map(lambda l: l.split('\t'), hash.readlines()))
     hash.close()
-    z = []
-    for l in dic.get(im).strip():
-        z.append(obtener_output(l))
-    return z
+    return dic
 
 
 def calcular_h1(w, xi, n):
@@ -296,61 +301,28 @@ def modify(im, out):
         actualizar_w2(w2, d2, h1)
     actualizar_archivo(w, "../pesos.txt")
     actualizar_archivo(w2, "../pesos2.txt")
-    return process(im)
 
 
-def train(folder):
-    w = inicializar_pesos(n_ocultas, inputs, "./pesos.txt")
-    w2 = inicializar_pesos(outputs, n_ocultas, "./pesos2.txt")
-
-    files = os.walk(folder).next()[2]
-    if '.directory' in files:
-        files.remove('.directory')
-    if 'hash.txt' in files:
-        files.remove('hash.txt')
-    count = 0
-    for im in files:
-        count += 1
-        try:
-            xi = inicializar_inputs(folder + im)
-            z = output_correcto(im)
-        except (Warning, AttributeError) as detail:
-            print im, count, detail
-        else:
-            print im, count
-            for i in range(5):
-                first = True
-                while first or error_ok(h2, z[i]):
-                    first = False
-                    h1 = calcular_h1(w, xi, i)
-                    h2 = calcular_h2(h1, w2)
-                    d2 = computar_delta2(h2, z[i])
-                    d1 = computar_delta1(h1, w2, d2)
-                    actualizar_w1(w, d1, xi, i)
-                    actualizar_w2(w2, d2, h1)
-    actualizar_archivo(w, "./pesos.txt")
-    actualizar_archivo(w2, "./pesos2.txt")
-
-#def main():
+#def train(folder):
 #    w = inicializar_pesos(n_ocultas, inputs, "./pesos.txt")
 #    w2 = inicializar_pesos(outputs, n_ocultas, "./pesos2.txt")
 #
-#    files = os.walk("./samples/captcha_samples_lib_03").next()[2]
+#    files = os.walk(folder).next()[2]
 #    if '.directory' in files:
 #        files.remove('.directory')
-#    files.remove('hash.txt')
+#    if 'hash.txt' in files:
+#        files.remove('hash.txt')
 #    count = 0
 #    for im in files:
-#        print im, count
 #        count += 1
 #        try:
-#            xi = inicializar_inputs("./samples/captcha_samples_lib_03/" + im)
-#            z = output_correcto(im)
+#            xi = inicializar_inputs(folder + im)
+#            z = output_correcto(folder)
 #        except (Warning, AttributeError) as detail:
-#            print "Imagen ", im, ": ", detail
+#            print im, count, detail
 #        else:
+#            print im, count
 #            for i in range(5):
-#                print im, i
 #                first = True
 #                while first or error_ok(h2, z[i]):
 #                    first = False
@@ -360,12 +332,6 @@ def train(folder):
 #                    d1 = computar_delta1(h1, w2, d2)
 #                    actualizar_w1(w, d1, xi, i)
 #                    actualizar_w2(w2, d2, h1)
-#                print representante(map(g, h2))
-#            actualizar_archivo(w, "./pesos.txt")
-#            actualizar_archivo(w2, "./pesos2.txt")
-#    xi = inicializar_inputs("./images/simples/pocas/conocido_01.bmp")
-#    for i in range(5):
-#        h1 = calcular_h1(w, xi, i)
-#        h2 = calcular_h2(h1, w2)
-#        print "conocido_01: ", i
-#        print representante(map(g, h2))
+#    actualizar_archivo(w, "./pesos.txt")
+#    actualizar_archivo(w2, "./pesos2.txt")
+
