@@ -1,0 +1,52 @@
+Hola Moyano.
+Mirá te cuento lo último a la fecha (16 de Julio, 18:13).
+
+Leí el peiper que me mandaste, y me dieron algunas ideas.
+Pero, ese peiper habla de como separar caracteres pero
+para casos más difíciles que el nuestro. Esto se debe a 
+que en el caso de los cheques, no tenés cambios de color
+entre caracteres sucesivos, y eso dificulta bastante la
+cosa.
+Usando esto último, la idea ahora para obtener los vecto-
+res de 0's y 1's que harán de inputs en la RN para cada
+caracter es la siguiente:
+
+  - Primero establecemos los límites, para ello:
+    - Recorremos la imagen hasta que encontramos el primer
+      píxel cuyo color (lo guardamos como _color) sea algu-
+      no de los 5 que más aparece.
+    - Continuamos hasta que haya una columna en la cual
+      no haya ningún píxel del color _color y ése va a ser
+      el final del caracter. (O sea, básicamente la dife-
+      rencia es que no buscamos una columna toda blanca,
+      sino que una columna en la que no aparezca el color
+      del caracter en cuestión).
+    - Luego hacemos una onda parecida con los límites su-
+      perior e inferior.
+  - Una vez que tenemos los límites, separamos los caracte-
+    res instanciando 5 objetos de la clase Letra, uno para
+    cada caracter. Ahora la clase Letra, tiene como atribu-
+    to el color de la letra.
+  - Ahora para cada caracter, generamos el vector de 0's y
+    1's. Este método para generar, se fija en cada píxel
+    y pone un 1 si el píxel es del color de la letra, y un
+    0 en cualquier otro caso. (Ahora como en una letra sepa-
+    rada puede haber pedazos de otra letra, directamente
+    compara con el color de la letra. Antes se fijaba si era
+    blanco, ponía un 0, y sino ponía un 1).
+
+Bueno, eso es básicamente la diferencia. Una cosa que me pa-
+rece importante, es que cuando se entrena o modifica (que
+son las acciones que cambian los w's), sólo se cambian los
+w's si la imagen es una imagen simple. La red sólo trabaja
+con los archivos que están en el archivo Hash.txt. Esto lo
+podemos discutir, el tema es que por ahí como en las imágenes
+complicadas pueden estar incompletos los caracteres, podría
+llegar a hacer que la red "aprenda mal". Por lo tanto no se
+actualizan los w's. Pero si uno quiere procesar (acción que
+te descifra un captcha, pero no actualiza los w's), lo puede
+hacer tranquilamente con imágenes tanto simples, como compli-
+cadas.
+
+Bueno che, te mando un beso. Si no entendés, después te expli-
+co. Lo pongo también para después acordarme yo. Besitos.
