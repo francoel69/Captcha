@@ -44,8 +44,8 @@ class Net:
         self.wo = setWeights(self.no, self.nh, "../pesos2.txt")
 
         # Last change in weights for momentum.
-        #self.ci = makeMatrix(self.nh, self.ni)
-        #self.co = makeMatrix(self.no, self.nh)
+        self.ci = makeMatrix(self.nh, self.ni)
+        self.co = makeMatrix(self.no, self.nh)
 
     def update(self, inputs):
         if len(inputs) != self.ni:
@@ -71,7 +71,7 @@ class Net:
 
         return maxout(map(g, self.ho))
 
-    def backPropagate(self, targets, N=0.5, M=0.1):
+    def backPropagate(self, targets, N, M):
         if len(targets) != self.no:
             raise ValueError('Wrong number of target values.')
 
@@ -93,16 +93,16 @@ class Net:
         for j in range(self.nh):
             for k in range(self.no):
                 change = output_deltas[k]*g(self.hh[j])
-                self.wo[k][j] = self.wo[k][j] + N*change
-                #self.co[k][j] = change
+                self.wo[k][j] = self.wo[k][j] + N*change + M*self.co[k][j]
+                self.co[k][j] = change
                 #print N*change, M*self.co[j][k]
 
         # update input weights
         for i in range(self.ni):
             for j in range(self.nh):
                 change = hidden_deltas[j]*self.hi[i]
-                self.wi[j][i] = self.wi[j][i] + N*change
-                #self.ci[j][i] = change
+                self.wi[j][i] = self.wi[j][i] + N*change + M*self.ci[j][i]
+                self.ci[j][i] = change
 
         # calculate error
         error = 0.0
@@ -129,11 +129,15 @@ class Net:
             lista.append(abs(g(self.ho[i]) - targets[i]))
         return any(map(lambda x: x>error_t, lista))
 
-    def train(self, files, folder, iterations=10, N=0.5, M=0.1):
+    def train(self, files, folder, iterations=50, N=0.5, M=0.9):
         # N: learning rate
         # M: momentum factor
         dic = targetDic(folder)
-        for k in range(iterations):
+        k = 0
+        cant = len(files)
+        error = 0.05*cant + 1.0
+        while error/cant > 0.05:
+            k += 1
             error = 0.0
             for im in files:
                 if dic.has_key(im):
@@ -145,8 +149,7 @@ class Net:
                         #first = False
                         self.update(xi[i])
                         error = error + self.backPropagate(targets, N, M)
-                    #error = error + err
-            print 'error', error/len(files)
+            print k, '\t', error/cant
         print u"Terminó de entrenar"
 
 
